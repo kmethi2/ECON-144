@@ -1,0 +1,132 @@
+---
+title: "Econ144_Project3"
+author: "Ian Lim 905793717"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r}
+library(tidyverse)
+library(zoo)
+library(dynlm)
+library(tseries)
+library(forecast)
+library(fpp2)
+library(tseries)
+library(seasonal)
+library(dplyr)
+library(stats)
+library(readxl)
+library(fpp3)
+library(ggplot2)
+library(vars)
+require(graphics)
+library(rugarch)
+library(fGarch)
+```
+
+
+```{r}
+nj_export <- read_csv("EXPTOTNJ.csv")
+View(nj_export)
+```
+
+
+
+```{r}
+nj_exports <- ts(nj_export$EXPTOTNJ, start = c(2013,1), end = c(2023,12), frequency = 12)
+tsdisplay(nj_exports)
+autoplot(nj_exports, ylab = "Unemployment Rate")
+```
+
+```{r}
+train_nj <- head(nj_exports, -60)
+test_nj <- tail(nj_exports, 60)
+```
+
+
+
+```{r}
+arima_model <- auto.arima(train_nj)
+arima_model
+plot(efp(arima_model$resid ~ 1, type = "Rec-CUSUM"), main = "Arima recursive CUSUM test")
+plot(train_nj)
+lines(arima_model$fitted,col="red3",lwd=2)
+arima_model_forecast <- forecast(arima_model, h = 60)
+autoplot(nj_exports) + autolayer(arima_model_forecast, series = "arima", PI=FALSE)
+```
+
+```{r}
+ets_mod <- ets(train_nj)
+plot(train_nj)
+lines(ets_mod$fitted,col="red3",lwd=2)
+plot(efp(ets_mod$resid ~ 1, type = "Rec-CUSUM"), main = "ETS recursive CUSUM test")
+ets_forecast <- forecast(ets_mod, h = 60)
+```
+
+```{r}
+autoplot(nj_exports) + autolayer(ets_forecast, series = "ets", PI=FALSE)
+accuracy(ets_forecast, nj_exports)
+checkresiduals(ets_forecast)
+```
+
+
+
+```{r}
+holt_forecast <- stlf(train_nj, h = 60, etsmodel = "AAN", damped = FALSE)
+plot(train_nj)
+lines(holt_forecast$fitted,col="red3",lwd=2)
+plot(efp(holt_forecast$resid ~ 1, type = "Rec-CUSUM"), main = "Holt recursive CUSUM test")
+```
+
+```{r}
+autoplot(nj_exports) + autolayer(holt_forecast, series = "holt", PI=FALSE)
+accuracy(holt_forecast, nj_exports)
+checkresiduals(holt_forecast)
+```
+
+
+
+```{r}
+nnetar_mod <- nnetar(train_nj)
+plot(efp(nnetar_mod$resid ~ 1, type = "Rec-CUSUM"), main = "NNETAR recursive CUSUM test")
+nnetar_fcst <- forecast(nnetar_mod, h = 60)
+```
+
+```{r}
+autoplot(nj_exports) + autolayer(nnetar_fcst, series = "nnetar", PI=FALSE)
+accuracy(nnetar_fcst, nj_exports)
+checkresiduals(nnetar_fcst)
+```
+
+
+```{r}
+Combination_forecast <- (ets_forecast[["mean"]] + arima_model_forecast[["mean"]] + nnetar_fcst[["mean"]] + holt_forecast[["mean"]])/4
+autoplot(nj_exports) + autolayer(Combination_forecast, series = "combo")
+```
+
+```{r}
+autoplot(nj_exports) +
+  autolayer(ets_forecast, series="ETS", PI=FALSE) +
+  autolayer(arima_model_forecast, series="arima", PI=FALSE) +
+  autolayer(holt_forecast, series="Holt", PI=FALSE) +
+  autolayer(nnetar_fcst, series="nnetar", PI=FALSE) +
+  autolayer(Combination_forecast, series="Combination") +
+  xlab("Year") + ylab("exports") +
+  ggtitle("New Jersey Monthly Exports")
+```
+
+Lol trash
+
+
+```{r}
+c(ETS = accuracy(ets_forecast, nj_exports)["Test set","RMSE"],
+  ARIMA = accuracy(arima_model_forecast, nj_exports)["Test set","RMSE"],
+  `Holt` = accuracy(holt_forecast, nj_exports)["Test set","RMSE"],
+  NNAR = accuracy(nnetar_fcst, nj_exports)["Test set","RMSE"],
+  Combination =
+    accuracy(Combination_forecast, nj_exports)["Test set","RMSE"])
+```
+
