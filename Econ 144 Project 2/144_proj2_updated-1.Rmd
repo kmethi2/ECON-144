@@ -1,0 +1,178 @@
+---
+title: "144_project2"
+author: "Krish Methi"
+date: "2/18/2024"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Clear everything and load libraries
+rm(list=ls(all=TRUE))
+
+# Load libraries
+library(tseries)
+library(forecast)
+library(fpp3)
+library(tseries)
+library(seasonal)
+library(fable)
+library(stats)
+require(graphics)
+library(dplyr)
+library(tsibble)
+library(tsibbledata)
+```
+
+# Part 1: Introduction
+
+The data we are working with for this project is data on monthly imports of goods from January of 2010 to December of 2023 for two states, New Jersey and Georgia. So we have two time series datasets with the same monthly frequency and duration, New Jersey and Georgia. We picked New Jersey and Georgia as they both had relatively similar numbers, and are also two of the more impactful states in the US in terms of economic productivity. Running time series analysis in modeling and predicting these imports can be impactful in gaining economic insight for two powerful economic hubs for the US. 
+
+# Part 2: Analysis
+
+## Load in the Data and Create time series variables
+
+```{r}
+setwd("~/Downloads")
+data1 <- read.csv("IMPTOTNJ.csv")
+data2 <- read.csv("IMPTOTGA.csv")
+GA_ts <- ts(data2$IMPTOTGA, start = 2010, frequency = 12)
+NJ_ts <- ts(data1$IMPTOTNJ, start = 2010, frequency = 12)
+```
+
+## Produce time series plot of the data with respective ACF and PACF
+```{r}
+tsdisplay(GA_ts)
+tsdisplay(NJ_ts)
+```
+
+First in terms of the Georgia Data, we can see the upward trend and slight seasonality from the timeplot, and the decay in the ACF and spikes in the PACF suggest an AR process as well for the data. Going back to the trend, discounting the major drop due to the pandemic, the positive trend seems more definitive. 
+
+In terms of the New Jersey Data, we see similar aspects. We see a positive trend, although less definitive and more volatile, and we see seasonality as well. We also see similar ACF and PACF plots signifying a potential AR process, however there is faster decay in the ACF in the NJ data than in the GA data which seems accurate with the time series plot. 
+
+## Plot the stl decomposition of the data and discuss results
+
+```{r}
+plot(stl(GA_ts,s.window="periodic"))
+plot(stl(NJ_ts,s.window="periodic"))
+```
+
+Based on these two stl decomposition plots, we can definitely see all three components presented. In terms of the trend, for both GA and NJ we can see a positive trend in imports from 2010 to 2023, with Georgia seeming to be a little bit stronger in the linear aspect but nonetheless a positive trend in both cases. 
+
+In terms of the seasonality, again that is very clear in both stl plots, and pretty constant over the course of time as well in terms of amplitude for both plots
+
+In terms of the cycles, the remainder does seem to exhibit slight patterns indicating cycles in both stl plots. We can also see a clear outlier just after 2020 in both plots which is expected with the pandemic and the economic impact of that. 
+
+So overall, we can see all 3 components likely present in both stl plots of the Georgia and New Jersey monthly imports time series. 
+
+## Fit a model to include trend seasonality and cycles and discuss the model
+
+```{r}
+#Quadratic trend fit with seasonal dummies and AR1 for Georgia data
+t<-seq(2010, 2024,length=length(GA_ts))
+t2 = t^2
+m1 = tslm(GA_ts ~ t + t2 + season)
+ARMA_GA=auto.arima(m1$residuals, max.P = 0, max.D = 0, max.Q = 0)
+fitted_ARMA_GA <- ARMA_GA$fitted
+GA_fitted <- m1$fitted.values + fitted_ARMA_GA
+plot(GA_ts)
+lines(t,GA_fitted,col="red3",lwd=2)
+```
+
+For the Georgia time series data, we fit a model with a quadratic trend, monthly seasonal dummies, and an ARMA(2,3) for the cyclical component. The quadratic trend stemmed from the exponential like increase over time from 2010 to 2023 which made it seem like a good fit for the model. The monthly seasonal dummies were placed as specified in the project guidelines. We used auto arima to see what would be a good fit for the cyclical component, and it gave us an arma 2,3 so we used the fitted values from the AR1 fit and added that to the trend and seasonality fitted values to get to our model's fitted values. As we can see, the model does a decent job in terms of how well the fitted values overlay with the original data
+
+```{r}
+#Quadratic trend fit with seasonal dummies and MA2 for New Jersey data
+t<-seq(2010, 2024,length=length(GA_ts))
+t2 = t^2
+m2 = tslm(NJ_ts ~ t + t2 + season)
+ARMA_NJ=auto.arima(m2$residuals, max.P = 0, max.D = 0, max.Q = 0)
+fitted_ARMA_NJ <- ARMA_NJ$fitted
+NJ_fitted <- m2$fitted.values + fitted_ARMA_NJ
+plot(NJ_ts)
+lines(t,NJ_fitted,col="red3",lwd=2)
+```
+
+For the New Jersey time series data, similarly we fit a model with a quadratic trend, monthly seasonal dummies, but we did an ARMA(1,4) for the cyclical component. The quadratic trend stemmed from the exponential like increase over time from 2010 to 2023 which made it seem like a good fit for the model. The monthly seasonal dummies were placed as specified in the project guidelines. using auto arima this time gave us an ARMA 1,4 so we used the fitted values from the ARMA 1,4 fit and added that to the trend and seasonality fitted values to get to our model's fitted values. As we can see, the model also does a decent job in terms of how well the fitted values overlay with the original data, discounting the drop due to the pandemic. 
+
+## Plot the respective residuals vs fitted values
+```{r}
+## Georgia
+plot(GA_fitted, ARMA_GA$residuals)
+
+## New Jersey
+plot(NJ_fitted, ARMA_NJ$residuals)
+```
+An important thing to note, based on the way we proceeded in the previous code, by having the first model account for the trend and seasonality, and then use the ARMA on the residuals from the first model, we can now operate on the residuals from the 2nd ARMA model as our overall respective residuals. 
+
+From these plots, we can see that for both Georgia and New Jersey, the residuals are fairly scattered and centered around zero, with some slight outliers across the data. Based on that there are no big patterns, we can say that our models have been pretty successful in capturing the dynamics of the Georgia and New Jersey time series data. 
+
+## Plot the ACF and PACF of the residuals and discuss
+
+```{r}
+## Georgia
+Acf(ARMA_GA$residuals)
+Pacf(ARMA_GA$residuals)
+
+# New Jersey
+Acf(ARMA_NJ$residuals)
+Pacf(ARMA_NJ$residuals)
+```
+First, looking at Georgia, We see hardly any significant spikes in either the ACF or the PACF of the residuals. And even when they do cross the bounds, they only do so by very small increments. 
+
+Looking at New Jersey, for the most part we can see that there aren't too many significant spikes in the ACF and PACF. However, we can see that there are more spikes that cross the threshold than in georgia's data. Intuitively this does make some sense as there is more of an MA aspect and more volatility in the New Jersey data that we have observed. But overall, most spikes either stay under the threshold, or barely cross the threshold. 
+
+
+## Fit an appropriate VAR model using your two variables. Make sure to show the relevant plots and discuss your results from the fit.
+
+```{r}
+library(vars)
+merged_data <- data.frame("NJ" = data1$IMPTOTNJ,"GA" = data2$IMPTOTGA)
+
+VARselect(merged_data, lag.max = 10)
+
+var_model <- VAR(merged_data, p = 6)
+summary(var_model)
+```
+Order 6 seems to be the best option based on the AIC score (it converges to 6 as well, which is a good sign)
+
+When analyzing the results of NJ, we see that only NJ lag 1 and lag 2 along with the constant are significant in predicting NJ's imports. For the results of GA, we see that only GA lag 1, 2, and 5 are significant in predicting GA's imports (There is a very good adjusted R squared of 93.98% for GA). Another good metric to look at here is the correlation matrix of residuals. Here we see that there a 50% correlation of residuals between NJ and GA, implying there is some correlation, but it's not very strong. 
+
+```{r}
+plot(var_model)
+```
+
+When looking at the top graph for both variables, we see that the plots are fairly similar to their projections. Also, when we look at the residuals, we see that they are mean reverting and don't seem to have any particular pattern. For the ACF residuals, there are no significant spikes in NJ, although there is a significant spike in the PACF residuals at Lag 12. For GA, there are two spikes in the ACF Residuals, but they barely cross the line, so it's not really noteworthy. However, for the PACF residuals, we do see significant spikes at 10 and 12. 
+
+## Compute, plot, and interpret the respective impulse response functions.
+
+```{r}
+plot(irf(var_model, n.ahead=36))
+
+```
+When looking at the IRF plot for NJ, we see that NJ has a high impact on NJ (this is to be expected), while NJ doesn't really have that big of an impact on GA. It is interesting to note that the further we go along the IRF plot, we see that NJ has a slightly higher impact on GA than it does on itself. 
+
+When looking at the IRF plot for GA, we see that early on, it has an noticeable impact on NJ, and as time goes on, it doesn't really have an impact on NJ. As expected, GA consistently has a high impact on GA. 
+
+## Perform a Granger-Causality test on your variables and discuss your results from the test
+
+```{r}
+grangertest(NJ ~ GA, data = merged_data, order = 6)
+
+grangertest(GA ~ NJ, data = merged_data, order = 6)
+```
+NJ and GA do not Granger cause each other. 
+
+## Use your VAR model to forecast 12-steps ahead. Your forecast should include the respective error bands. Comment on the differences between the VAR forecast and the other ones obtained using the different methods.
+
+
+```{r}
+library(forecast)
+forecast <- predict(var_model, n.ahead = 12)
+par(mar = c(4, 4, 2, 2))
+plot(forecast)
+```
+When comparing the forecasts of the VAR model vs the STL model, we see that in both states, the VAR models displays a general upward trend while the STL model displays a general downward trend. This could be due to the lags used or how different models measure different variables. When comparing VAR vs ARMA, we see that they generally seem to give pretty similar forecasts. However, the bands for ARMA seem to be a lot bigger compared to VAR. 
